@@ -170,9 +170,6 @@ func (png *PNG) Populate() error {
 func (png PNG) PrintOtherChunks() string {
 	var output string
 	for i, c := range png.chunks {
-		if i == 1 {
-			continue
-		}
 		output += fmt.Sprintf("-----------\n")
 		output += fmt.Sprintf("Chunk # %d\n", i + 1)
 		output += fmt.Sprintf("Chunk length: %d\n", c.Length)
@@ -187,20 +184,25 @@ func (png PNG) PrintOtherChunks() string {
 }
 
 
-func (png PNG) PrintStableDiffusionParameterChunk() string {
+func (png PNG) PrintStableDiffusionParameterChunk() {
 	c := png.chunks[1];
-	if c.CType != "tEXt" {
-		panic("Bad c.CType: " + c.CType)
-	}
-	text := string(c.Data)
-	if !strings.HasPrefix(text, "parameters\000") {
-	    //						 01234567890"
-		if len(text) > 50 {
-			text = text[:50]
+	if c.CType == "tEXt" {
+		text := string(c.Data)
+		if strings.HasPrefix(text, "parameters\000") {
+			//						01234567890"
+			fmt.Println(text[11:])
+			return
 		}
-		panic("Bad prefix (should be \"parameters\\0)\": " + text)
 	}
-	return text[11:]
+
+	// Did not find the information, so just loop through all chunks
+	// and print out those that are tEXt
+	fmt.Println("Cannot find automatic1111 metadata, so print all text chunk")
+	for _, c := range png.chunks {
+		if c.CType == "tEXt" {
+			fmt.Println(string(c.Data))
+		}
+	}
 }
 
 
@@ -254,16 +256,52 @@ func parsePng(filename string) {
 		fmt.Println(png.PrintOtherChunks())
 		fmt.Println("----------")
 	}
-	fmt.Println(png.PrintStableDiffusionParameterChunk())
+	png.PrintStableDiffusionParameterChunk()
+	fmt.Println()
 }
 
 
 func usage() {
 	xpng := filepath.Base(os.Args[0])
-	fmt.Printf("%s -v(erbose) file1 [file2] ....\n", xpng)
+	fmt.Printf("%s -v(erbose) pattern1 [pattern2] ....\n", xpng)
 }
 
 var verbose = false
+
+func parsePngWithWildcard(wildcardArgs []string) error{
+	// fmt.Println("moveMatchedFiles directory:", directory)
+	f, err := os.Open(".")
+	if err != nil {
+		return err
+	}
+	allInfos, err := f.Readdir(-1); f.Close()
+	if err != nil {
+		return err
+	}
+	for _, x := range allInfos {
+		if x.IsDir() {
+			continue
+		}
+		name := x.Name()
+		if name == "." || name == ".." {
+			continue
+		}
+		lowercaseName := strings.ToLower(name) // ignore case
+		for _, y := range(wildcardArgs) {
+			matched, err := filepath.Match(y, lowercaseName)
+			if err != nil {
+				return err
+			} 
+			if matched {
+				parsePng(name)
+				break
+			}
+		}
+	}
+	return nil
+}
+
+
 
 func main() {
 	log.SetFlags(0)
@@ -274,10 +312,15 @@ func main() {
 			verbose = true
 			args = args[1:]
 		}
+		wildcardArgs := make([]string, 0, len(args))
 		for _, x := range args {
-			parsePng(x)
-			fmt.Println()
+			if strings.Index(x, "*") >= 0 || strings.Index(x, "?") >= 0 {
+				wildcardArgs = append(wildcardArgs, x)
+			} else {
+				parsePng(x)
+			}
 		}
+		parsePngWithWildcard(wildcardArgs)
 	} else {
 		usage()
 	}
