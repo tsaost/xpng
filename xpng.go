@@ -293,6 +293,7 @@ func parsePngWithWildcard(wildcardArgs []string) error{
 				return err
 			} 
 			if matched {
+				fmt.Println(name)
 				parsePng(name)
 				break
 			}
