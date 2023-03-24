@@ -6,6 +6,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -14,6 +15,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -183,30 +185,160 @@ func (png *PNG) PrintOtherChunks() string {
 	return output
 }
 
+/*
+a photo of a dog, style of <lora:robots:1>, absurdres, 8k, best quality (\n)
 
-func (png PNG) PrintStableDiffusionParameterChunk() {
-	c := png.chunks[1];
-	if c.CType == "tEXt" {
-		text := string(c.Data)
-		if strings.HasPrefix(text, "parameters\000") {
-			//						01234567890"
-			fmt.Println(text[11:])
-			return
-		}
-	}
+				(one linebreak only)
 
-	// Did not find the information, so just loop through all chunks
-	// and print out those that are tEXt
-	fmt.Println("Cannot find automatic1111 metadata, so print all text chunk")
-	for _, c := range png.chunks {
-		if c.CType == "tEXt" {
-			fmt.Println(string(c.Data))
-		}
-	}
+Negative prompt:  verybadimagenegative_v1.3,  NG_DeepNegative_V1_75T (\n)
+
+				(one linebreak only)
+		(below parameters seperated by comma)
+
+Steps: 50,
+Sampler: Euler a,
+CFG scale: 5,
+Seed: 3943585291,
+Size: 640x640,
+Model hash: 7f668f12f8,
+Model: cyberrealistic_v12,
+Denoising strength: 0.5,
+Clip skip: 3,
+Hires upscale: 1.5000000000000002,
+Hires steps: 25,
+Hires upscaler: SwinIR_4x,
+Eta: 0.9, Score: 5.57
+
+		(above was mostly all on one line)
+				(one linebreak only)
+
+Template: a photo of a dog, style of <lora:robots:1>, absurdres, 8k, best quality (\n)
+
+				(one linebreak only)
+
+Negative Template:  verybadimagenegative_v1.3,  NG_DeepNegative_V1_75T
+*/
+
+type WebUIMetadata struct {
+	Positive          string  `json:"prompt"`
+	Negative          string  `json:"negative"`
+	Steps             int     `json:"steps"`
+	Sampler           string  `json:"sampler"`
+	CFGScale          int     `json:"cfg_scale"`
+	Seed              int     `json:"seed"`
+	Size              string  `json:"size"`
+	ModelHash         string  `json:"model_hash"`
+	Model             string  `json:"model"`
+	DenoisingStrength float64 `json:"denoising_strength"`
+	ClipSkip          int     `json:"clip_skip"`
+	HiresUpscale      float64 `json:"hires_upscale"`
+	HiresSteps        int     `json:"hires_steps"`
+	HiresUpscaler     string  `json:"hires_upscaler"`
+	Eta               float64 `json:"eta"`
+	Score             float64 `json:"score"`
+	Template          string  `json:"template"`
+	NegativeTemplate  string  `json:"negative_template"`
 }
 
+// implement io.Writer
+func (meta *WebUIMetadata) Write(p []byte) (n int, err error) {
+	// parse the data returned by GetMetadata into the struct by reading and splitting the bytes by newlines and commas
+	// also split by colons to get the key and value
+	// then assign the values to the struct fields
 
-func parsePng(filename string) {
+	// first split by newlines
+	lines := bytes.Split(p, []byte("\n"))
+	// then split by commas
+	for i, line := range lines {
+		switch {
+		case i == 0:
+			meta.Positive = string(line)
+		case i == 1:
+			meta.Negative = string(line)
+		case i == 2:
+			// split by commas
+			// then split by colons
+			// then assign to struct fields
+			fields := bytes.Split(line, []byte(","))
+			for _, field := range fields {
+				field = bytes.TrimSpace(field)
+				kv := bytes.Split(field, []byte(":"))
+				if len(kv) != 2 {
+					continue
+				}
+				kv[0] = bytes.TrimSpace(kv[0])
+				kv[0] = bytes.ReplaceAll(kv[0], []byte(" "), []byte("_"))
+				kv[1] = bytes.TrimSpace(kv[1])
+				switch string(bytes.ToLower(kv[0])) {
+				case "steps":
+					if meta.Steps, err = strconv.Atoi(string(kv[1])); err != nil {
+						return 0, err
+					}
+				case "sampler":
+					meta.Sampler = string(kv[1])
+				case "cfg_scale":
+					if meta.CFGScale, err = strconv.Atoi(string(kv[1])); err != nil {
+						return 0, err
+					}
+				case "seed":
+					if meta.Seed, err = strconv.Atoi(string(kv[1])); err != nil {
+						return 0, err
+					}
+				case "size":
+					meta.Size = string(kv[1])
+				case "model_hash":
+					meta.ModelHash = string(kv[1])
+				case "model":
+					meta.Model = string(kv[1])
+				case "denoising_strength":
+					if meta.DenoisingStrength, err = strconv.ParseFloat(string(kv[1]), 64); err != nil {
+						return 0, err
+					}
+				case "clip_skip":
+					if meta.ClipSkip, err = strconv.Atoi(string(kv[1])); err != nil {
+						return 0, err
+					}
+				case "hires_upscale":
+					if meta.HiresUpscale, err = strconv.ParseFloat(string(kv[1]), 64); err != nil {
+						return 0, err
+					}
+				case "hires_steps":
+					if meta.HiresSteps, err = strconv.Atoi(string(kv[1])); err != nil {
+						return 0, err
+					}
+				case "hires_upscaler":
+					meta.HiresUpscaler = string(kv[1])
+				case "eta":
+					if meta.Eta, err = strconv.ParseFloat(string(kv[1]), 64); err != nil {
+						return 0, err
+					}
+				case "score":
+					if meta.Score, err = strconv.ParseFloat(string(kv[1]), 64); err != nil {
+						return 0, err
+					}
+				}
+			}
+		}
+	}
+	return len(p), nil
+}
+
+func (png *PNG) GetMetadata() ([]byte, error) {
+	c := png.chunks[1]
+	if c.CType == "tEXt" &&
+		strings.HasPrefix(string(c.Data), "parameters\000") {
+		//					01234567890"
+		return c.Data[11:], nil
+	}
+	return nil, errors.New("no webui metadata found")
+}
+
+func stderr(s string) {
+	_, _ = os.Stderr.WriteString(s)
+	_, _ = os.Stderr.WriteString("\n")
+}
+
+func parsePng(filename string) error {
 	imgFile, err := os.Open(filename)
 	if err != nil {
 		panic(err)
@@ -216,13 +348,12 @@ func parsePng(filename string) {
 	// Read first 8 bytes == PNG header.
 	header := make([]byte, 8)
 	// Read CRC32 hash
-	if _, err := io.ReadFull(imgFile, header); err != nil {
-		panic(err)
+	if _, err = io.ReadFull(imgFile, header); err != nil {
+		return err
 	}
 	if string(header) != PNGHeader {
-		fmt.Printf("Wrong PNG header.\nGot %x - Expected %x\n",
+		return fmt.Errorf("invalid png header. got %x - expected %x\n",
 			header, PNGHeader)
-		return
 	}
 
 	var png PNG
@@ -256,8 +387,20 @@ func parsePng(filename string) {
 		fmt.Println(png.PrintOtherChunks())
 		fmt.Println("----------")
 	}
-	png.PrintStableDiffusionParameterChunk()
-	fmt.Println()
+	meta := new(WebUIMetadata)
+	m, err := png.GetMetadata()
+	if err != nil {
+		return err
+	}
+	if _, err = meta.Write(m); err != nil {
+		return err
+	}
+	var dat []byte
+	if dat, err = json.MarshalIndent(meta, "", "    "); err != nil {
+		return err
+	}
+	_, _ = os.Stdout.Write(dat)
+	return nil
 }
 
 func usage() {
@@ -302,8 +445,6 @@ func parsePngWithWildcard(wildcardArgs []string) error {
 	return nil
 }
 
-
-
 func main() {
 	log.SetFlags(0)
 	args := os.Args[1:]
@@ -326,8 +467,8 @@ func main() {
 				stderr(err.Error())
 			}
 		}
-		parsePngWithWildcard(wildcardArgs)
-	} else {
-		usage()
+	}
+	if err := parsePngWithWildcard(wildcardArgs); err != nil {
+		stderr(err.Error())
 	}
 }
