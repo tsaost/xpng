@@ -236,8 +236,8 @@ type WebUIMetadata struct {
 	HiresUpscaler     string  `json:"hires_upscaler"`
 	Eta               float64 `json:"eta"`
 	Score             float64 `json:"score"`
-	Template          string  `json:"template"`
-	NegativeTemplate  string  `json:"negative_template"`
+	Template          string  `json:"template,omitempty"`
+	NegativeTemplate  string  `json:"negative_template,omitempty"`
 }
 
 // implement io.Writer
@@ -254,7 +254,7 @@ func (meta *WebUIMetadata) Write(p []byte) (n int, err error) {
 		case i == 0:
 			meta.Positive = string(line)
 		case i == 1:
-			meta.Negative = string(line)
+			meta.Negative = string(bytes.ReplaceAll(line, []byte("Negative prompt: "), []byte("")))
 		case i == 2:
 			// split by commas
 			// then split by colons
