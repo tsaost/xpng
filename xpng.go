@@ -29,7 +29,7 @@ func uInt32ToInt(buf []byte) (int, error) {
 	return int(binary.BigEndian.Uint32(buf)), nil
 }
 
-// Each chunk starts with a uint32 length (big endian), then 4 byte name,
+// Chunk starts with a uint32 length (big endian), then 4 byte name,
 // then data and finally the CRC32 of the chunk data.
 type Chunk struct {
 	Length int    // chunk data length
@@ -166,12 +166,12 @@ func (png *PNG) Populate() error {
 	return nil
 }
 
-// PrintChunks will return a string containing chunk number,
-func (png PNG) PrintOtherChunks() string {
+// PrintOtherChunks will return a string containing chunk number,
+func (png *PNG) PrintOtherChunks() string {
 	var output string
 	for i, c := range png.chunks {
 		output += fmt.Sprintf("-----------\n")
-		output += fmt.Sprintf("Chunk # %d\n", i + 1)
+		output += fmt.Sprintf("Chunk # %d\n", i+1)
 		output += fmt.Sprintf("Chunk length: %d\n", c.Length)
 		output += fmt.Sprintf("Chunk type: %v\n", c.CType)
 		limit := 20
@@ -238,7 +238,7 @@ func parsePng(filename string) {
 		}
 	}
 
-	if err := (&png).Populate(); err != nil {
+	if err = (&png).Populate(); err != nil {
 		fmt.Println("Failed to populate PNG fields.")
 		panic(err)
 	}
@@ -251,7 +251,7 @@ func parsePng(filename string) {
 		} else {
 			fmt.Println(string(jsoned))
 		}
-	
+
 		fmt.Println("\nPrinting chunks\n----------")
 		fmt.Println(png.PrintOtherChunks())
 		fmt.Println("----------")
@@ -260,7 +260,6 @@ func parsePng(filename string) {
 	fmt.Println()
 }
 
-
 func usage() {
 	xpng := filepath.Base(os.Args[0])
 	fmt.Printf("%s -v(erbose) pattern1 [pattern2] ....\n", xpng)
@@ -268,13 +267,14 @@ func usage() {
 
 var verbose = false
 
-func parsePngWithWildcard(wildcardArgs []string) error{
+func parsePngWithWildcard(wildcardArgs []string) error {
 	// fmt.Println("moveMatchedFiles directory:", directory)
 	f, err := os.Open(".")
 	if err != nil {
 		return err
 	}
-	allInfos, err := f.Readdir(-1); f.Close()
+	allInfos, err := f.Readdir(-1)
+	f.Close()
 	if err != nil {
 		return err
 	}
@@ -287,11 +287,11 @@ func parsePngWithWildcard(wildcardArgs []string) error{
 			continue
 		}
 		lowercaseName := strings.ToLower(name) // ignore case
-		for _, y := range(wildcardArgs) {
+		for _, y := range wildcardArgs {
 			matched, err := filepath.Match(y, lowercaseName)
 			if err != nil {
 				return err
-			} 
+			}
 			if matched {
 				fmt.Println(name)
 				parsePng(name)
@@ -307,18 +307,23 @@ func parsePngWithWildcard(wildcardArgs []string) error{
 func main() {
 	log.SetFlags(0)
 	args := os.Args[1:]
-	if len(args) > 0 {
-		arg0 := args[0]
-		if arg0 == "-v" || arg0 == "-verbose" {
+	if len(args) == 0 {
+		usage()
+		return
+	}
+
+	wildcardArgs := make([]string, 0, len(args))
+	for _, x := range args {
+		switch {
+		case x == "-v", x == "-verbose":
 			verbose = true
-			args = args[1:]
-		}
-		wildcardArgs := make([]string, 0, len(args))
-		for _, x := range args {
-			if strings.Index(x, "*") >= 0 || strings.Index(x, "?") >= 0 {
-				wildcardArgs = append(wildcardArgs, x)
-			} else {
-				parsePng(x)
+			continue
+		case strings.Index(x, "*") >= 0,
+			strings.Index(x, "?") >= 0:
+			wildcardArgs = append(wildcardArgs, x)
+		default:
+			if err := parsePng(x); err != nil {
+				stderr(err.Error())
 			}
 		}
 		parsePngWithWildcard(wildcardArgs)
