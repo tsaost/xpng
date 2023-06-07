@@ -229,13 +229,13 @@ type WebUIMetadata struct {
 	Size              string  `json:"size"`
 	ModelHash         string  `json:"model_hash"`
 	Model             string  `json:"model"`
-	DenoisingStrength float64 `json:"denoising_strength"`
-	ClipSkip          int     `json:"clip_skip"`
-	HiresUpscale      float64 `json:"hires_upscale"`
-	HiresSteps        int     `json:"hires_steps"`
-	HiresUpscaler     string  `json:"hires_upscaler"`
-	Eta               float64 `json:"eta"`
-	Score             float64 `json:"score"`
+	DenoisingStrength float64 `json:"denoising_strength,omitempty"`
+	ClipSkip          int     `json:"clip_skip,omitempty"`
+	HiresUpscale      float64 `json:"hires_upscale,omitempty"`
+	HiresSteps        int     `json:"hires_steps,omitempty"`
+	HiresUpscaler     string  `json:"hires_upscaler,omitempty"`
+	Eta               float64 `json:"eta,omitempty"`
+	Score             float64 `json:"score,omitempty"`
 	Template          string  `json:"template,omitempty"`
 	NegativeTemplate  string  `json:"negative_template,omitempty"`
 }
