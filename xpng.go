@@ -224,7 +224,7 @@ type WebUIMetadata struct {
 	Negative          string  `json:"negative"`
 	Steps             int     `json:"steps"`
 	Sampler           string  `json:"sampler"`
-	CFGScale          int     `json:"cfg_scale"`
+	CFGScale          float64 `json:"cfg_scale"`
 	Seed              int     `json:"seed"`
 	Size              string  `json:"size"`
 	ModelHash         string  `json:"model_hash"`
@@ -277,7 +277,7 @@ func (meta *WebUIMetadata) Write(p []byte) (n int, err error) {
 				case "sampler":
 					meta.Sampler = string(kv[1])
 				case "cfg_scale":
-					if meta.CFGScale, err = strconv.Atoi(string(kv[1])); err != nil {
+					if meta.CFGScale, err = strconv.ParseFloat(string(kv[1]), 64); err != nil {
 						return 0, err
 					}
 				case "seed":
