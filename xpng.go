@@ -323,13 +323,20 @@ func (meta *WebUIMetadata) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
+var cTypeNeedles = map[string]bool{
+	"text": true,
+	"txt":  true,
+	"itxt": true,
+}
+
 func (png *PNG) GetMetadata() ([]byte, error) {
 	c := png.chunks[1]
-	if c.CType == "tEXt" &&
-		strings.HasPrefix(string(c.Data), "parameters\000") {
+	if _, ok := cTypeNeedles[strings.ToLower(c.CType)]; ok && strings.HasPrefix(string(c.Data), "parameters\000") {
 		//					01234567890"
-		return c.Data[11:], nil
+		return bytes.TrimSpace(c.Data[11:]), nil
 	}
+	// println("[debug] c-type: " + c.CType)
+	// println("[debug] c-data: " + string(c.Data))
 	return nil, errors.New("no webui metadata found")
 }
 
