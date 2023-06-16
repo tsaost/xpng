@@ -240,6 +240,20 @@ type WebUIMetadata struct {
 	NegativeTemplate  string  `json:"negative_template,omitempty"`
 }
 
+func fixBytes(lineB []byte) []byte {
+	lineB = bytes.TrimSpace(lineB)
+	lineB = bytes.Trim(lineB, "\x00")
+	lineB = bytes.ReplaceAll(lineB, []byte(`\u003c`), []byte("<"))
+	lineB = bytes.ReplaceAll(lineB, []byte(`\u003e`), []byte(">"))
+	lineB = bytes.ReplaceAll(lineB, []byte(`\u0026`), []byte("&"))
+	return lineB
+}
+
+func fixLine(lineB []byte) string {
+	line := strings.TrimSpace(string(fixBytes(lineB)))
+	return line
+}
+
 // implement io.Writer
 func (meta *WebUIMetadata) Write(p []byte) (n int, err error) {
 	// parse the data returned by GetMetadata into the struct by reading and splitting the bytes by newlines and commas
@@ -252,7 +266,7 @@ func (meta *WebUIMetadata) Write(p []byte) (n int, err error) {
 	for i, line := range lines {
 		switch {
 		case i == 0:
-			meta.Positive = string(line)
+			meta.Positive = fixLine(line)
 		case i == 1:
 			meta.Negative = string(bytes.ReplaceAll(line, []byte("Negative prompt: "), []byte("")))
 		case i == 2:
@@ -319,9 +333,9 @@ func (meta *WebUIMetadata) Write(p []byte) (n int, err error) {
 				}
 			}
 		case i == 3:
-			meta.Template = string(line)
+			meta.Template = strings.TrimPrefix(fixLine(line), "Template: ")
 		case i == 4:
-			meta.NegativeTemplate = string(line)
+			meta.NegativeTemplate = strings.TrimPrefix(fixLine(line), "Negative Template: ")
 		}
 	}
 	return len(p), nil
@@ -389,8 +403,10 @@ func parsePng(filename string) error {
 		fmt.Println("PNG info")
 		jsoned, err := json.MarshalIndent(png, "", "    ")
 		if err != nil {
+			fmt.Printf("%v", err)
 			fmt.Printf("%+v", png)
 		} else {
+			jsoned = fixBytes(jsoned)
 			fmt.Println(string(jsoned))
 		}
 
@@ -410,6 +426,7 @@ func parsePng(filename string) error {
 	if dat, err = json.MarshalIndent(meta, "", "    "); err != nil {
 		return err
 	}
+	dat = fixBytes(dat)
 	_, _ = os.Stdout.Write(dat)
 	return nil
 }
