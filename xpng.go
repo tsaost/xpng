@@ -318,6 +318,10 @@ func (meta *WebUIMetadata) Write(p []byte) (n int, err error) {
 					}
 				}
 			}
+		case i == 3:
+			meta.Template = string(line)
+		case i == 4:
+			meta.NegativeTemplate = string(line)
 		}
 	}
 	return len(p), nil
